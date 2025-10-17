@@ -1,6 +1,6 @@
 from django.utils.text import slugify
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from apps.courses.id_generator import generate_id
@@ -32,6 +32,17 @@ class CourseListAPIView(APIView):
 
 
 class CourseDetailAPIView(APIView):
+    def get_object(self, pk):
+        try:
+            return Course.objects.get(pk=pk)
+        except Course.DoesNotExist:
+            return None
+
+    def get_permissions(self):
+        if self.request.method == 'PATCH':
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
     @staticmethod
     def get(request, pk):
         try:
@@ -54,24 +65,6 @@ class CourseDetailAPIView(APIView):
 
         return Response(data, status=status.HTTP_200_OK)
 
-
-class CourseUpdateView(APIView):
-    # permission_classes = [IsAuthenticated]
-
-    @staticmethod
-    def get_object(pk):
-        try:
-            return Course.objects.get(pk=pk)
-        except Course.DoesNotExist:
-            return None
-
-    def get(self, request, pk):
-        course = self.get_object(pk)
-        if not course:
-            return Response({"detail": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = CourseUpdateSerializer(course)
-        return Response(serializer.data)
-
     def put(self, request, pk):
         return self.update_course(request, pk, partial=False)
 
@@ -85,7 +78,6 @@ class CourseUpdateView(APIView):
 
         if not hasattr(request.user, 'instructor_profile') and not request.user.is_superuser:
             return Response({"detail": "You are not an instructor"}, status=status.HTTP_403_FORBIDDEN)
-
         if not request.user.is_superuser and course.instructor != request.user.instructor_profile:
             return Response({"detail": "You are not the owner of this course"}, status=status.HTTP_403_FORBIDDEN)
 
@@ -102,10 +94,8 @@ class CourseUpdateView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
-
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class CourseDeleteView(APIView):
     def delete(self, request, pk):
         course = self.get_object(pk)
         if not course:
@@ -113,7 +103,6 @@ class CourseDeleteView(APIView):
 
         if not hasattr(request.user, 'instructor_profile') and not request.user.is_superuser:
             return Response({"detail": "You are not an instructor"}, status=status.HTTP_403_FORBIDDEN)
-
         if not request.user.is_superuser and course.instructor != request.user.instructor_profile:
             return Response({"detail": "You are not the owner of this course"}, status=status.HTTP_403_FORBIDDEN)
 
